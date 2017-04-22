@@ -1,0 +1,338 @@
+{
+    "kind": "Template",
+    "apiVersion": "v1",
+    "metadata": {
+        "name": "postgresql-statefulset",
+        "annotations": {
+            "description": "PostgreSQL database cluster, with persistent storage based Opeshift Statefulset configuration. You must have persistent volumes available in your cluster to use this template.",
+            "iconClass": "icon-postgresql",
+            "openshift.io/display-name": "PostgreSQL Cluster (StatefulSet)",
+            "tags": "database,postgresql",
+            "template.openshift.io/long-description": "This template provides a PostgreSQL cluster (master + replica) with a database created.  The database is stored on persistent storage.  The database name, username, and password are chosen via parameters when provisioning this service.",
+            "template.openshift.io/provider-display-name": "Red Hat, Inc.",
+            "template.openshift.io/support-url": "https://access.redhat.com"
+        }
+    },
+    "objects": [
+         {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {
+                "name": "pgset"
+            },
+            "stringData": {
+                "database-password": "${POSTGRESQL_PASSWORD}",
+                "database-user": "${POSTGRESQL_USER}"
+            }
+         }, 
+         {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "pgset",
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "pgset"
+                }
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "name": "web",
+                        "protocol": "TCP",
+                        "port": 5432,
+                        "targetPort": 5432
+                    }
+                ],
+                "selector": {
+                    "app": "pgset"
+                },
+                "clusterIP": "None",
+                "type": "ClusterIP",
+                "sessionAffinity": "None"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "metadata": {
+               "name": "pgset-master",
+                  "labels": {
+                     "name": "pgset-master"
+                  }
+                },
+                "spec": {
+                   "ports": [{
+                      "protocol": "TCP",
+                      "port": 5432,
+                      "targetPort": 5432,
+                      "nodePort": 0
+                }],
+                "selector": {
+                   "name": "pgset-master"
+                },
+                "type": "ClusterIP",
+                "sessionAffinity": "None"
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "metadata": {
+               "name": "pgset-replica",
+               "labels": {
+                   "name": "pgset-replica"
+               }
+            },
+            "spec": {
+                "ports": [{
+                   "protocol": "TCP",
+                   "port": 5432,
+                   "targetPort": 5432,
+                   "nodePort": 0
+                }],
+                "selector": {
+                   "name": "pgset-replica"
+                },
+                "type": "ClusterIP",
+                "sessionAffinity": "None"
+            }
+	},
+        {
+            "kind": "StatefulSet",
+            "apiVersion": "apps/v1beta1",
+            "metadata": {
+                "name": "pgset",
+                "generation": 1,
+                "creationTimestamp": null,
+                "labels": {
+                    "app": "pgset"
+                }
+            },
+            "spec": {
+                "replicas": 2,
+                "selector": {
+                    "matchLabels": {
+                        "app": "pgset"
+                    }
+                },
+                "template": {
+                    "metadata": {
+                        "creationTimestamp": null,
+                        "labels": {
+                            "app": "pgset",
+                            "name": "pgset-replica"
+                        }
+                    },
+                    "spec": {
+                        "volumes": [
+                            {
+                                "name": "pgdata",
+                                "persistentVolumeClaim": {
+                                    "claimName": "pgset-pvc"
+                                }
+                            }
+                        ],
+                        "containers": [
+                            {
+                                "name": "pgset",
+                                "image": "crunchydata/crunchy-postgres:centos7-${POSTGRESQL_VERSION}-${POSTGRESQL_SUBVERSION}",
+                                "readinessProbe": {
+                    		    "exec": {
+                                        "command": [
+                                            "/opt/cpm/bin/readiness.sh"
+                                        ]
+                                    },
+                                    "initialDelaySeconds": 30,
+                                    "timeoutSeconds": 2
+                                },
+                                "livenessProbe": {
+                                   "exec": {
+                                       "command": [
+                                           "/opt/cpm/bin/liveness.sh"
+                                       ]
+                                   },
+                                   "initialDelaySeconds": 30,
+                                   "timeoutSeconds": 2
+                                },
+                                "ports": [
+                                    {
+                                        "name": "postgres",
+                                        "containerPort": 5432,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "PG_MASTER_USER",
+                                        "value": "master"
+                                    },
+                                    {
+                                        "name": "PGHOST",
+                                        "value": "/tmp"
+                                    },
+                                    {
+                                        "name": "PG_MODE",
+                                        "value": "set"
+                                    },
+                                    {
+                                        "name": "PG_MASTER_HOST",
+                                        "value": "pgset-master"
+                                    },
+                                    {
+                                        "name": "PG_MASTER_PORT",
+                                        "value": "5432"
+                                    },
+                                    {
+                                        "name": "PG_MASTER_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "database-password",
+                                                "name": "pgset"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "PG_USER",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "database-user",
+                                                "name": "pgset"
+                                            }
+                                        }
+
+                                    },
+                                    {
+                                        "name": "PG_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "database-password",
+                                                "name": "pgset"
+                                            }
+                                        }
+
+                                    },
+                                    {
+                                        "name": "PG_DATABASE",
+                                        "value": "${POSTGRESQL_DATABASE}"
+                                    },
+                                    {
+                                        "name": "PG_ROOT_PASSWORD",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "database-password",
+                                                "name": "pgset"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "resources": {
+                                    "limits": {
+                                        "memory": "${MEMORY_LIMIT}"
+                                    }
+                                },
+                                "volumeMounts": [
+                                    {
+                                        "name": "pgdata",
+                                        "mountPath": "/pgdata"
+                                    }
+                                ],
+                                "terminationMessagePath": "/dev/termination-log",
+                                "imagePullPolicy": "IfNotPresent"
+                            }
+                        ],
+                        "restartPolicy": "Always",
+                        "terminationGracePeriodSeconds": 30,
+                        "dnsPolicy": "ClusterFirst",
+                        "securityContext": {
+                            "capabilities": {},
+                            "privileged": false
+                        }
+                    }
+                },
+                "serviceName": "pgset"
+            },
+            "status": {
+                "replicas": 2
+            }
+        },
+        {
+            "kind": "PersistentVolumeClaim",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "pgset-pvc"
+            },
+            "spec": {
+                "accessModes": [
+                    "ReadWriteMany"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": "${VOLUME_CAPACITY}"
+                    }
+                }
+            },
+            "status": {}
+        }
+    ],
+    "parameters": [
+        {
+            "name": "MEMORY_LIMIT",
+            "displayName": "Memory Limit",
+            "description": "Maximum amount of memory the container can use.",
+            "value": "512Mi",
+            "required": true
+        },
+        {
+            "name": "POSTGRESQL_USER",
+            "displayName": "PostgreSQL Connection Username",
+            "description": "Username for PostgreSQL user that will be used for accessing the database.",
+            "generate": "expression",
+            "from": "user[A-Z0-9]{3}",
+            "required": true
+        },
+        {
+            "name": "POSTGRESQL_PASSWORD",
+            "displayName": "PostgreSQL Connection Password",
+            "description": "Password for the PostgreSQL connection user.",
+            "generate": "expression",
+            "from": "[a-zA-Z0-9]{16}",
+            "required": true
+        },
+        {
+            "name": "POSTGRESQL_DATABASE",
+            "displayName": "PostgreSQL Database Name",
+            "description": "Name of the PostgreSQL database accessed.",
+            "value": "sampledb",
+            "required": true
+        },
+        {
+            "name": "VOLUME_CAPACITY",
+            "displayName": "Volume Capacity",
+            "description": "Volume space available for data, e.g. 512Mi, 2Gi.",
+            "value": "1Gi",
+            "required": true
+        },
+        {
+            "name": "POSTGRESQL_VERSION",
+            "displayName": "Version of PostgreSQL Image",
+            "description": "Version of PostgreSQL image to be used (9.5 or 9.6).",
+            "value": "9.5",
+            "required": true
+        },
+        {
+            "name": "POSTGRESQL_SUBVERSION",
+            "displayName": "Sub version of PostgreSQL Image",
+            "description": "Sub version of PostgreSQL image to be used (1.2.8 or 1.3.0).",
+            "value": "1.3.0",
+            "required": true
+        } 
+    ],
+    "labels": {
+        "template": "postgresql-statefulset-template"
+    }
+ 
+}
