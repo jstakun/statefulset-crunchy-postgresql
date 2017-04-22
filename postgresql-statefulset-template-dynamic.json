@@ -283,7 +283,7 @@
             "displayName": "PostgreSQL Connection Username",
             "description": "Username for PostgreSQL user that will be used for accessing the database.",
             "generate": "expression",
-            "from": "user[A-Z0-9]{3}",
+            "from": "user[a-z0-9]{3}",
             "required": true
         },
         {
