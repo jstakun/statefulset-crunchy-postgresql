@@ -12,7 +12,7 @@ oc create -f postgresql-statefulset-template.json
 
 oc create -f postgresql-statefulset-template-dynamic.json 
 
-1. Create project
+2. Create project
 
 oadm new-project postgresql-cluster --display-name='PostgreSQL Cluster' --description='PostgreSQL Cluster using StatefulSets' --node-selector='region=dev'
 
@@ -20,13 +20,13 @@ oc project postgresql-cluster
 
 oadm policy add-role-to-user edit -z default
 
-1. Deploy application
+3. Deploy application
 
-  1. With dynamic persistent storage provisioning (https://docs.openshift.com/container-platform/3.5/install_config/persistent_storage/dynamically_provisioning_pvs.html)
+  3.1. With dynamic persistent storage provisioning (https://docs.openshift.com/container-platform/3.5/install_config/persistent_storage/dynamically_provisioning_pvs.html)
 
 oc new-app postgresql-statefulset-dynamic
 
-  1. Without dynamic persistent storage provisioning
+  3.2. Without dynamic persistent storage provisioning
 
 oc new-app postgresql-statefulset
 
